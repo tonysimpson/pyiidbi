@@ -15,7 +15,7 @@ This is an early beta, expect nothing, cursor[.execute|.fetchall|.description] s
 Requiers
 --------
 
-Python with ctypes module (recent Jython or Pypy, any Python since 2.2).
+Python with ctypes module (recent Jython or Pypy, any Python since 2.3).
 Ingres OpenAPI.
 
 Licence
