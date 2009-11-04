@@ -4,11 +4,11 @@ from base import *
 class Cursor(object):
 
     def cursor_method(close_open_statement=True):
-    """Most cursor methods need to aquire the connection lock etc. This
-    decorator performs the start and end tasks required by most cursor
-    methods.
+        """Most cursor methods need to aquire the connection lock etc. This
+        decorator performs the start and end tasks required by most cursor
+        methods.
 
-    """
+        """
         def decorator(func):
             def wrapper(args, kwargs):
                 if self.__closed:
@@ -33,6 +33,7 @@ class Cursor(object):
         self.__open_stmt = None
         self.description = property(fget = self.__get_description())
         self.rowcount    = property(fget = self.__get_rowcount())
+        self.__rowcount  = -1
         self.arraysize   = 1
         self.__closed    = False
 
@@ -40,7 +41,7 @@ class Cursor(object):
         if self.__open_stmt:
             return self.__open_stmt.rowcount
         else:
-            return -1
+            return self.__rowcount
 
     def __get_description(self):
         if self.__open_stmt:
@@ -48,13 +49,9 @@ class Cursor(object):
         else:
             return None
 
-    def __set__arraysize(self, value):
-        if
-
     @cursor_method
     def close(self):
-        self.rowcount    = -1
-        self.description = None
+        self.__rowcount    = -1
         self.__conn      = None
         self.__closed    = True
 
@@ -70,7 +67,7 @@ class Cursor(object):
         if row_returning:
             self.__open_stmt = cursor(self.__conn, operation, parameters)
         else:
-            self.rowcount = query(self.__conn, operation, parameters)
+            self.__rowcount = query(self.__conn, operation, parameters)
 
     @cursor_method
     def execute_many(self, operation, seq_of_parameters):
@@ -123,12 +120,12 @@ class Cursor(object):
 
 class Connection(object):
 
-    def connection_method()
-    """Most connection methods need to aquire the connection lock etc. This
-    decorator performs the start and end tasks required by most connection
-    methods.
+    def connection_method():
+        """Most connection methods need to aquire the connection lock etc. This
+        decorator performs the start and end tasks required by most connection
+        methods.
 
-    """
+        """
         def decorator(func):
             def wrapper(args, kwargs):
                 if self.__closed:

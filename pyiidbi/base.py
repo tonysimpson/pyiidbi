@@ -5,6 +5,7 @@ from errors import *
 from datetime import datetime, timedelta, date, time
 
 ENV_HANDLE = None
+SEG_LENGTH = 32000
 
 def init():
     global ENV_HANDLE
@@ -23,7 +24,7 @@ def init():
     if setenvprm_parm.se_status != IIAPI_ST_SUCCESS:
         raise Exception('Failed to set segment length.')
 
-__init__()
+init()
 
 def __del__():
     term_parm = IIAPI_TERMPARM()
@@ -104,7 +105,7 @@ def identify_query(query):
             return quert_type, can_prepare, returns_rows, error_msg
     return IIAPI_QT_QUERY, False, False, None
 
-SQL_QUERY_TYPES = ]
+SQL_QUERY_TYPES = [
     (re.compile(r"(?i)\s*SELECT"), IIAPI_QT_OPEN, True, True, None),
     (re.compile(r"(?i)\s*(?:INSERT|UPDATE|DELETE)"), IIAPI_QT_QUERY, True, False, None),
     (re.compile(r"(?i)\s*(?:CREATE|ALTER|DROP|GRANT|REVOKE|MODIFY|SET)"), IIAPI_QT_QUERY, False, False, None),
@@ -295,7 +296,7 @@ def set_description(conn, params):
     wait_and_raise_errors(setdescr_parm.sd_genParm)
 
 
-def send_params(conn, params)
+def send_params(conn, params):
     putparm_parm                 = IIAPI_PUTPARMPARM()
     putparm_parm.pp_stmtHandle   = conn.stmt_handle
     putparm_parm.pp_parmData     = conn.dv_array
