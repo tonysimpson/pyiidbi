@@ -1,29 +1,28 @@
 from errors import *
-from base import *
+import base
 
 class Cursor(object):
-
-    def cursor_method(close_open_statement=True):
+    def cursor_method(close_open_statement):
         """Most cursor methods need to aquire the connection lock etc. This
         decorator performs the start and end tasks required by most cursor
         methods.
 
         """
         def decorator(func):
-            def wrapper(args, kwargs):
+            def wrapper(self, *args, **kwargs):
                 if self.__closed:
                     Error('Cursor is closed')
                 try:
-                    self.__conn.lock.aquire() # aquire the connection lock
+                    self.__conn.lock.acquire() # aquire the connection lock
                     if self.__open_stmt and close_open_statement: #should close previous stmt
                         try:
-                            close_or_cancel_open_statement(self.__open_stmt)
+                            base.close_or_cancel_open_statement(self.__open_stmt)
                         finally:
                             self.__open_stmt = None
 
-                    return func(*args, **kwargs) # execute wrapped function
+                    return func(self, *args, **kwargs) # execute wrapped function
                 finally:
-                    self.__conn_info.lock.release() # release the connection lock
+                    self.__conn.lock.release() # release the connection lock
             wrapper.__name__ = func.__name__
             wrapper.__doc__  = func.__doc__
             return wrapper
@@ -32,8 +31,8 @@ class Cursor(object):
     def __init__(self, conn):
         self.__conn      = conn
         self.__open_stmt = None
-        self.description = property(fget = self.__get_description())
-        self.rowcount    = property(fget = self.__get_rowcount())
+        self.description = property(fget = self.__get_description)
+        self.rowcount    = property(fget = self.__get_rowcount)
         self.__rowcount  = -1
         self.arraysize   = 1
         self.__closed    = False
@@ -50,27 +49,27 @@ class Cursor(object):
         else:
             return None
 
-    @cursor_method
+    @cursor_method(close_open_statement=True)
     def close(self):
         self.__rowcount    = -1
         self.__conn      = None
         self.__closed    = True
 
-    @cursor_method
+    @cursor_method(close_open_statement=True)
     def execute(self, operation, parameters=None):
         """Execute a statement or command.
 
         """
-        query_type, can_prepare, row_returning, error_msg = identify_query(operation)
+        query_type, can_prepare, row_returning, error_msg = base.identify_query(operation)
         if error_msg: # there are issues with this type of query
             raise ProgrammingError(error_msg)
 
         if row_returning:
-            self.__open_stmt = cursor(self.__conn, operation, parameters)
+            self.__open_stmt = base.cursor(self.__conn, operation, parameters)
         else:
-            self.__rowcount = query(self.__conn, operation, parameters)
+            self.__rowcount = base.query(self.__conn, operation, parameters)
 
-    @cursor_method
+    @cursor_method(close_open_statement=True)
     def execute_many(self, operation, seq_of_parameters):
         """Execute a statement or command once for each set fo parameters.
 
@@ -95,7 +94,7 @@ class Cursor(object):
             for parameters in seq_of_parameters:
                 query(self.__conn, operation, parameters)
 
-    @cursor_method
+    @cursor_method(close_open_statement=True)
     def callproc(self, procname, parameters=None):
         """Execute stored procedure.
 
@@ -121,26 +120,27 @@ class Cursor(object):
     def __del__(self):
         self.close()
 
-class Connection(object):
 
+
+
+class Connection(object):
     def connection_method(func):
         """Most connection methods need to aquire the connection lock etc. This
         decorator performs the start and end tasks required by most connection
         methods.
 
         """
-        def wrapper(args, kwargs):
+        def wrapper(self, *args, **kwargs):
             if self.__closed:
                 Error('Connection is closed')
             try:
-                self.__conn.lock.aquire() # aquire the connection lock
-                return func(*args, **kwargs) # execute wrapped function
+                self.__conn.lock.acquire() # aquire the connection lock
+                return func(self, *args, **kwargs) # execute wrapped function
             finally:
-                self.__conn_info.lock.release() # release the connection lock
+                self.__conn.lock.release() # release the connection lock
         wrapper.__name__ = func.__name__
         wrapper.__doc__  = func.__doc__
         return wrapper
-
 
     def __init__(self,conn):
         self.__conn   = conn
@@ -148,25 +148,30 @@ class Connection(object):
 
     @connection_method
     def rollback(self):
-        rollback(self.__conn)
+        base.rollback(self.__conn)
 
     @connection_method
     def commit(self):
-        commit(self.__conn)
+        base.commit(self.__conn)
 
     @connection_method
     def close(self):
         try:
-            disconnect(self.__conn)
+            base.disconnect(self.__conn)
         finally:
             self.__closed == true
 
     def cursor(self):
         cur = Cursor(self.__conn)
-        self.cursor_wrefs.append(weakref.ref(cur))
         return cur
 
     def __del__(self):
         self.close()
+
+def connect(database, username=None, password=None, environment=None):
+    """Creates a database connection.
+
+    """
+    return Connection(base.connect(database, username, password, environment))
 
 __ALL__ = ['connect', 'Error', 'Warning']

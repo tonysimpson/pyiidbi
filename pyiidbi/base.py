@@ -3,6 +3,7 @@ from ctypes import *
 from struct import pack, unpack
 from errors import *
 from datetime import datetime, timedelta, date, time
+import threading
 
 ENV_HANDLE = None
 SEG_LENGTH = 32000
@@ -102,7 +103,7 @@ def close_or_cancel_open_statement(self):
 def identify_query(query):
     for regexp, query_type, can_prepare, returns_rows, error_msg in SQL_QUERY_TYPES:
         if regexp.match(query):
-            return quert_type, can_prepare, returns_rows, error_msg
+            return query_type, can_prepare, returns_rows, error_msg
     return IIAPI_QT_QUERY, False, False, None
 
 SQL_QUERY_TYPES = [
@@ -122,6 +123,7 @@ SEG_LENGTH  = 4*1024
 
 def display_length(data_type, length):
     return None
+
 def get_description(stmt_handle):
     getdescr_parm = IIAPI_GETDESCRPARM()
     getdescr_parm.gd_stmtHandle = stmt_handle
@@ -347,18 +349,18 @@ def send_params(conn, params):
         IIapi_putParms(byref(putparm_parm))
         wait_and_raise_errors(putparm_parm.pp_genParm)
 
-def cursor(self, stmt, parameters=None):
+def cursor(conn, stmt, parameters=None):
     query_parm = IIAPI_QUERYPARM()
-    query_parm.qy_connHandle = self.conn.conn_handle
+    query_parm.qy_connHandle = conn.conn_handle
     query_parm.qy_queryType  = IIAPI_QT_OPEN
     query_parm.qy_queryText  = stmt
     query_parm.qy_parameters = True
-    query_parm.qy_tranHandle = self.conn.tran_handle
+    query_parm.qy_tranHandle = conn.tran_handle
     IIapi_query(byref(query_parm))
     try:
         wait_and_raise_errors(query_parm.qy_genParm)
     finally:
-        self.stmt_handle  = query_parm.qy_stmtHandle
+        conn.stmt_handle  = query_parm.qy_stmtHandle
         self.active_query = True
         if not self.conn.tran_handle:
             self.conn.tran_handle = query_parm.qy_tranHandle
@@ -464,7 +466,9 @@ def connect(database, username=None, password=None, environment=None):
             abort_parm.ab_connHandle = con_parm.co_connHandle
             IIapi_abort(byref(abort_parm))
         raise exc
-    return Connection(con_parm.co_connHandle)
+    conn = ConnectionState()
+    conn.conn_handle = con_parm.co_connHandle
+    return conn
 
 def disconnect(connection):
     if not self.conn_handle:
