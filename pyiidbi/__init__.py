@@ -27,6 +27,7 @@ class Cursor(object):
             wrapper.__name__ = func.__name__
             wrapper.__doc__  = func.__doc__
             return wrapper
+        return decorator
 
     def __init__(self, conn):
         self.__conn      = conn
@@ -108,7 +109,9 @@ class Cursor(object):
         pass
 
     @cursor_method(close_open_statement=False)
-    def fetchmany(self, size=self.arraysize):
+    def fetchmany(self, size=None):
+        if size == None:
+            size = self.arraysize
         pass
 
     @cursor_method(close_open_statement=False)
@@ -120,24 +123,24 @@ class Cursor(object):
 
 class Connection(object):
 
-    def connection_method():
+    def connection_method(func):
         """Most connection methods need to aquire the connection lock etc. This
         decorator performs the start and end tasks required by most connection
         methods.
 
         """
-        def decorator(func):
-            def wrapper(args, kwargs):
-                if self.__closed:
-                    Error('Connection is closed')
-                try:
-                    self.__conn.lock.aquire() # aquire the connection lock
-                    return func(*args, **kwargs) # execute wrapped function
-                finally:
-                    self.__conn_info.lock.release() # release the connection lock
-            wrapper.__name__ = func.__name__
-            wrapper.__doc__  = func.__doc__
-            return wrapper
+        def wrapper(args, kwargs):
+            if self.__closed:
+                Error('Connection is closed')
+            try:
+                self.__conn.lock.aquire() # aquire the connection lock
+                return func(*args, **kwargs) # execute wrapped function
+            finally:
+                self.__conn_info.lock.release() # release the connection lock
+        wrapper.__name__ = func.__name__
+        wrapper.__doc__  = func.__doc__
+        return wrapper
+
 
     def __init__(self,conn):
         self.__conn   = conn
