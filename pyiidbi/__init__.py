@@ -52,7 +52,6 @@ class Cursor(object):
     @cursor_method(close_open_statement=True)
     def close(self):
         self.__rowcount    = -1
-        self.__conn      = None
         self.__closed    = True
 
     @cursor_method(close_open_statement=True)
@@ -105,7 +104,10 @@ class Cursor(object):
 
     @cursor_method(close_open_statement=False)
     def fetchall(self):
-        pass
+        try:
+            return base.fetchall(self.__conn, self.__open_stmt)
+        finally:
+            self.__open_stmt = None
 
     @cursor_method(close_open_statement=False)
     def fetchmany(self, size=None):

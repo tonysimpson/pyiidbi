@@ -46,59 +46,64 @@ class ConnectionState(object):
     def __init__(self):
         self.conn_handle = None
         self.tran_handle = None
-        self.stmt_handle = None #active statement
         self.data_buffer = None #buffer mem location
-        self.data_buflen = None #buffer length
+        self.data_buflen = 0 #buffer length
         self.dv_array    = None
         self.lock        = threading.RLock()
 
-def close_or_cancel_open_statement(self):
-    if self.stmt_handle:
-        if self.active_query:
+class StatementState(object):
+    """Stores open statement state
+
+    """
+    def __init__(self):
+        self.stmt_handle = None
+        self.description = None
+        self.row_count   = None
+        self.row_iter    = None
+
+def close_or_cancel_open_statement(open_stmt):
+    if open_stmt.stmt_handle:
+        if open_stmt.row_iter:
             cancel_parm = IIAPI_CANCELPARM()
-            cancel_parm.cn_stmtHandle = self.stmt_handle
+            cancel_parm.cn_stmtHandle = open_stmt.stmt_handle
             IIapi_cancel(byref(cancel_parm))
             try:
                 wait_and_raise_errors(cancel_parm.cn_genParm)
             except:
                 pass
             finally:
-                self.active_query = False
+                open_stmt.row_iter = False
         close_parm = IIAPI_CLOSEPARM()
-        close_parm.cl_stmtHandle = self.stmt_handle
+        close_parm.cl_stmtHandle = open_stmt.stmt_handle
         IIapi_close(byref(close_parm))
         try:
             wait_and_raise_errors(close_parm.cl_genParm)
         finally:
-            self.stmt_handle = None
-            self.row_count   = -1
-            self.description = None
+            open_stmt.stmt_handle = None
+            open_stmt.row_count   = None
+            open_stmt.description = None
 
-
-
-
-    def __iter__(self):
-        def row_iterator():
-            for row in results_gen(self.stmt_handle, self.description, self.buffer, self.buffer_byte_len):
-                yield row
-
-            getqinfo_parm = IIAPI_GETQINFOPARM()
-            getqinfo_parm.gq_stmtHandle = self.stmt_handle
-            IIapi_getQueryInfo(byref(getqinfo_parm))
-            wait_and_raise_errors(getqinfo_parm.gq_genParm)
-            if getqinfo_parm.gq_mask & IIAPI_GQ_ROW_COUNT:
-                self.row_count = getqinfo_parm.gq_rowCount
-
-            close_parm = IIAPI_CLOSEPARM()
-            close_parm.cl_stmtHandle = self.stmt_handle
-            IIapi_close(byref(close_parm))
-            try:
-                wait_and_raise_errors(close_parm.cl_genParm)
-            finally:
-                self.stmt_handle = None
-                self.active_query = False
-
-        return row_iterator()
+def fetchall(conn, open_stmt):
+    if open_stmt.stmt_handle:
+        res = list(results_gen(open_stmt.stmt_handle, open_stmt.description, conn.data_buffer, conn.data_buflen))
+        getqinfo_parm = IIAPI_GETQINFOPARM()
+        getqinfo_parm.gq_stmtHandle = open_stmt.stmt_handle
+        IIapi_getQueryInfo(byref(getqinfo_parm))
+        wait_and_raise_errors(getqinfo_parm.gq_genParm)
+        if getqinfo_parm.gq_mask & IIAPI_GQ_ROW_COUNT:
+            open_stmt.row_count = getqinfo_parm.gq_rowCount
+        else:
+            open_stmt.row_count = -1
+        close_parm = IIAPI_CLOSEPARM()
+        close_parm.cl_stmtHandle = open_stmt.stmt_handle
+        IIapi_close(byref(close_parm))
+        try:
+            wait_and_raise_errors(close_parm.cl_genParm)
+        finally:
+            open_stmt.stmt_handle = None
+        return res
+    else:
+        return None
 
 def identify_query(query):
     for regexp, query_type, can_prepare, returns_rows, error_msg in SQL_QUERY_TYPES:
@@ -350,28 +355,26 @@ def send_params(conn, params):
         wait_and_raise_errors(putparm_parm.pp_genParm)
 
 def cursor(conn, stmt, parameters=None):
+    open_stmt = StatementState()
     query_parm = IIAPI_QUERYPARM()
     query_parm.qy_connHandle = conn.conn_handle
     query_parm.qy_queryType  = IIAPI_QT_OPEN
     query_parm.qy_queryText  = stmt
-    query_parm.qy_parameters = True
+    query_parm.qy_parameters = bool(parameters)
     query_parm.qy_tranHandle = conn.tran_handle
     IIapi_query(byref(query_parm))
-    try:
-        wait_and_raise_errors(query_parm.qy_genParm)
-    finally:
-        conn.stmt_handle  = query_parm.qy_stmtHandle
-        self.active_query = True
-        if not self.conn.tran_handle:
-            self.conn.tran_handle = query_parm.qy_tranHandle
-
-    params = (Parameter(chars('pyiidbi_cur_'+self.id), IIAPI_COL_SVCPARM),)
+    #try
+    wait_and_raise_errors(query_parm.qy_genParm)
+    #close statement on error
+    open_stmt.stmt_handle  = query_parm.qy_stmtHandle
+    if not conn.tran_handle:
+        conn.tran_handle = query_parm.qy_tranHandle
     if parameters:
-        params += tuple(Parameter(p, IIAPI_COL_QPARM) for p in parameters)
-
-    set_description(self.stmt_handle, params)
-    send_params(self.stmt_handle, params)
-    self.description = get_description(self.stmt_handle)
+        parms = tuple(Parameter(p, IIAPI_COL_QPARM) for p in parameters)
+        set_description(open_stmt.stmt_handle, params)
+        send_params(open_stmt.stmt_handle, params)
+    open_stmt.description = get_description(open_stmt.stmt_handle)
+    return open_stmt
 
 def results_gen(stmt_handle, description, buffer, buffer_byte_len):
     if description:
