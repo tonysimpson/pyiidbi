@@ -5,18 +5,17 @@ pyiidbi is an Ingres Python DBI driver, it allows Python to connect to the Ingre
 
 It is pure Python code so requires no compilation and for this reason should be portable.
 
-pyiidbi aims for high usability and DBI complience.
-
 Status
 ------
 
-This is an early beta, expect nothing, cursor[.execute|.fetchall|.description] should be working soon - check commit messages.
+Completly none functional, expect nothing, cursor[.execute|.fetchall|.description] should be working soon - check commit messages.
 
-Requiers
---------
+See http://wiki.github.com/tonysimpson/pyiidbi/status
 
-Python with ctypes module (recent Jython, IronPython or Pypy, any CPython since 2.3).
-Ingres OpenAPI.
+Aims
+----
+
+See http://wiki.github.com/tonysimpson/pyiidbi/aims
 
 Licence
 -------
